@@ -1,8 +1,11 @@
-const express = require('express');
+const express = require("express");
+const cors = require("cors");
+const db = require("./db");
+
 const app = express();
 const PORT = 3000;
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database("./tasks.db");
+
+app.use(cors());
 app.use(express.json());
 
 
@@ -15,15 +18,26 @@ db.run(`CREATE TABLE IF NOT EXISTS tasks (
 `);
 
 app.get('/', (req, res) => {
-  res.send('Hello, World!');
-});
-
-app.get("/", (req, res) => {
-  res.send("blablablablablablabla");
+  res.send('Todo');
 });
 
 
 app.post("/tasks", (req, res) => {
-  const action = req.body.action;
-  res.send(`Received action: ${action}`);
+  const { category } = req.query;
+
+  let sql = "SELECT * FROM tasks";
+  let params = [];
+
+  if (category) {
+    sql += " WHERE category = ?";
+    params.push(category);
+  }
+
+  db.all(sql, params, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    res.status(200).json(rows);
+  });
 });
