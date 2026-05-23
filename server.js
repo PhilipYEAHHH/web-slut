@@ -1,18 +1,36 @@
 const express = require("express");
 const sqlite3 = require("sqlite3");
-const db = require("./db");
-
+const db = new sqlite3.Database("./todos.db");
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
 
+function validateTodo({ title, completed, priority }) {
+  if (!title) return "Title is required";
+  if (typeof title !== "string" || title.trim() === "")
+    return "Title must be a string";
+
+  if (completed === undefined)
+    return "Completed status is required";
+  if (typeof completed !== "boolean")
+    return "Completed must be true or false";
+
+  if (priority === undefined)
+    return "Priority is required";
+  if (typeof priority !== "number")
+    return "Priority must be a number (1–5)";
+  if (priority < 1 || priority > 5)
+    return "Priority must be between 1 and 5";
+
+  return null;
+}
 
 db.run(`CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY,
   title TEXT NOT NULL,
-  urgency INTEGER NOT NULL,
-  done BOOLEAN NOT NULL
+  completed BOOLEAN NOT NULL,
+  priority INTEGER NOT NULL
 );
 `);
 
@@ -27,9 +45,9 @@ app.post("/tasks", (req, res) => {
   let sql = "SELECT * FROM tasks";
   let params = [];
 
-  if (category) {
-    sql += " WHERE category = ?";
-    params.push(category);
+  if (completed !== undefined) {
+    sql += " WHERE completed = ?";
+    params.push(completed === "true" ? 1 : 0);
   }
 
   db.all(sql, params, (err, rows) => {
@@ -54,22 +72,23 @@ app.get("/tasks/:id", (req, res) => {
 });
 
 app.post("/tasks", (req, res) => {
-  const { title } = req.body;
+  const { title, completed, priority } = req.body;
 
-  // Validation
-  if (!title) {
-    return res.status(400).json({ error: "Title is required" });
+  const validationError = validateTodo({ title, completed, priority });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
-  const query = "INSERT INTO tasks (title) VALUES (?)";
+  const query = "INSERT INTO tasks (title, completed, priority) VALUES (?, ?, ?)";
 
-  db.run(query, [title], function (err) {
+  db.run(query, [title, completed, priority], function (err) {
     if (err) return res.status(500).json({ error: err.message });
 
     res.status(201).json({
       id: this.lastID,
       title,
-      completed: 0
+      completed,
+      priority
     });
   });
 });
